@@ -1,0 +1,9 @@
+# Goal
+int32[] ids
+---
+# Result
+bool completed
+geometry_msgs/Point[] positions
+---
+# Feedback
+string status
