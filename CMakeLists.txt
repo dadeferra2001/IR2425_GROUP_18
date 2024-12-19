@@ -5,6 +5,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   actionlib
   tf2
+  tf2_ros
   actionlib_msgs
   geometry_msgs
   move_base_msgs

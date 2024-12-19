@@ -12,7 +12,9 @@
 #include <apriltag_ros/AprilTagDetectionArray.h>
 #include <assignment1/functions.h>
 #include <assignment1/robot_status.h>
-
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 class ActionServer {
     protected:
@@ -187,7 +189,26 @@ class ActionServer {
                     // Check if the tag was already found and if the tag is target
                     if(!found_ids.count(id) && std::find(target_ids.begin(), target_ids.end(), id) != target_ids.end()){
                         ROS_INFO("Found april tag with id %d", id);
-                        found_ids.insert(std::pair<int, geometry_msgs::Pose>(id, detection.pose.pose.pose));
+
+                        tf2_ros::Buffer tf(ros::Duration(1.0));
+                        tf2_ros::TransformListener tfListener(tf);
+
+                        geometry_msgs::PoseStamped pose_camera_frame;
+
+                        pose_camera_frame.header.frame_id = "xtion_rgb_optical_frame";
+                        pose_camera_frame.header.stamp = ros::Time(0);
+                        pose_camera_frame.pose = detection.pose.pose.pose;
+
+                        geometry_msgs::PoseStamped pose_base_frame;
+                        tf.transform(pose_camera_frame, pose_base_frame, "base_link", ros::Duration(1.0));
+                        
+                        pose_base_frame.header.stamp = ros::Time(0);
+                        geometry_msgs::PoseStamped pose_map_frame;
+                        tf.transform(pose_base_frame, pose_map_frame, "map", ros::Duration(1.0));
+                        
+                        ROS_INFO("Transformed the pose to map frame");
+
+                        found_ids.insert(std::pair<int, geometry_msgs::Pose>(id, pose_map_frame.pose));
                     } 
                 }
         }
