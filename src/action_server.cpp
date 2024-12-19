@@ -124,7 +124,7 @@ class ActionServer {
                 ROS_INFO("Waiting for the move_base action server to come up");
             }
 
-            for (size_t i = 0; i < waypoints.size(); ++i) {
+            for (size_t i = 0; i < waypoints.size() && !isJobCompleted(); ++i) {
                 // Prepare a goal message
                 move_base_msgs::MoveBaseGoal goal;
                 goal.target_pose.header.frame_id = "map"; // Use the map frame
