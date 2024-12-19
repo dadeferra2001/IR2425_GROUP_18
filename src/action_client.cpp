@@ -28,6 +28,8 @@ public:
 
     ROS_INFO("Action server started, sending goal.");
 
+    poses = targets;
+
     // Initialize the action goal
       assignment1::SearchIdsGoal goal;
       goal.ids = targets;
@@ -38,10 +40,22 @@ public:
 
 
   void doneCallback(const actionlib::SimpleClientGoalState &state, const assignment1::SearchIdsResultConstPtr &result) {
-    ROS_INFO("Finished in state [%s]", state.toString().c_str());
-    ROS_INFO("Answer: %d", result->completed);
+    if(result->completed) {
+        ROS_INFO("The robot found ALL the april tags!");
+      } else {
+        ROS_INFO("The robot found only %ld out of %ld april tags", result->poses.size(),  poses.size());
+      }
 
-    // TODO: Better output of the results
+      for(auto const& pose : result->poses) {
+        ROS_INFO("Pose in world frame: Position(x=%f, y=%f, z=%f), Orientation(x=%f, y=%f, z=%f, w=%f)",
+                 pose.position.x,
+                 pose.position.y,
+                 pose.position.z,
+                 pose.orientation.x,
+                 pose.orientation.y,
+                 pose.orientation.z,
+                 pose.orientation.w);
+      }
 
     ros::shutdown();
   }
@@ -56,6 +70,7 @@ public:
 
 private:
   actionlib::SimpleActionClient<assignment1::SearchIdsAction> ac;
+  std::vector<int> poses;
 };
 
 
