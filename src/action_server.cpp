@@ -7,7 +7,6 @@
 #include <trajectory_msgs/JointTrajectoryPoint.h>
 #include <actionlib/server/simple_action_server.h>
 #include <actionlib/client/simple_action_client.h>
-#include <assignment1/MoveAction.h>
 #include <assignment1/SearchIdsAction.h>
 #include <move_base_msgs/MoveBaseAction.h>
 #include <apriltag_ros/AprilTagDetectionArray.h>
