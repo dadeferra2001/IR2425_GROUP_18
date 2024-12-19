@@ -60,12 +60,10 @@ public:
     ros::shutdown();
   }
 
-  void activeCallback() {
-    ROS_INFO("Goal just went active");
-  }
+  void activeCallback() {}
 
   void feedbackCallback(const assignment1::SearchIdsFeedbackConstPtr &feedback) {
-    ROS_INFO("Got Feedback, current status of the robot is: %s", feedback->status.c_str());
+    ROS_INFO("Feedback from the action server: %s", feedback->status.c_str());
   }
 
 private:

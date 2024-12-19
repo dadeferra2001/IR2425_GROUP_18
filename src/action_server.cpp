@@ -38,9 +38,6 @@ class ActionServer {
     public:
 
         ActionServer(std::string name) : action_name_(name), as_(nh_, name, boost::bind(&ActionServer::executeCB, this, _1), false), movebase_client_("/move_base", true) {
-            
-            tiltHeadDown(-0.6);
-
             ROS_INFO("Starting the 'SearchIds' action server!");
             as_.start();
 
@@ -130,7 +127,7 @@ class ActionServer {
             goal.target_pose.pose.position = point;
             goal.target_pose.pose.orientation.w = 1.0;
 
-            ROS_INFO("Navigating to: [x=%.2f, y=%.2f, z=%.2f]", point.x, point.y, point.z);
+            updateStatus(ROBOT_STATUS::MOVING);
 
             movebase_client_.sendGoal(goal);
 
@@ -138,7 +135,7 @@ class ActionServer {
 
             if (finished_before_timeout) {
                 if (movebase_client_.getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
-                    ROS_INFO("Reached waypoint, performing a full 360-degree spin...");
+                    updateStatus(ROBOT_STATUS::SCANNING);
 
                     geometry_msgs::Twist spin_msg;
                     spin_msg.linear.x = 0.0;
@@ -161,15 +158,12 @@ class ActionServer {
                     spin_msg.angular.z = 0.0;
                     cmd_vel_pub.publish(spin_msg);
 
-                    ROS_INFO("Completed full spin.");
+                    updateStatus(ROBOT_STATUS::SCAN_COMPLETE);
                     return true;
-                } else {
-                    ROS_WARN("Failed to reach waypoint.");
                 }
-            } else {
-                ROS_WARN("Timed out while trying to reach waypoint.");
             }
 
+            updateStatus(ROBOT_STATUS::MOVE_FAILED);
             return false;
         }
 
@@ -190,11 +184,13 @@ class ActionServer {
         void executeCB(const assignment1::SearchIdsGoalConstPtr &goal) {
             
             target_ids = goal->ids;
-            ROS_INFO("Received target IDs: [%s]", vectorToCSV(target_ids).c_str());
+            updateStatus(ROBOT_STATUS::GOAL_RECEIVED);
+
+            tiltHeadDown(-0.6);
 
             tag_detections = nh_.subscribe("/tag_detections", 1000, &ActionServer::tagDetectionsCallback, this);
 
-            ROS_INFO("Generating waypoints...");
+            updateStatus(ROBOT_STATUS::GENERATING_WAYPOINTS);
             std::vector<geometry_msgs::Point> waypoints = generateWaypoints();
 
             navigateWaypoints(waypoints);
@@ -206,12 +202,13 @@ class ActionServer {
             result.poses = getValues(found_ids);
             if(isJobCompleted()){
                 result.completed = true;
-                ROS_INFO("Succeeded");
+                updateStatus(ROBOT_STATUS::GOAL_REACHED);
             } else {
                 result.completed = false;
-                ROS_INFO("Failed");
+                updateStatus(ROBOT_STATUS::GOAL_FAILED);
             }
 
+            tiltHead();
             as_.setSucceeded(result);
         }
 
@@ -221,7 +218,7 @@ class ActionServer {
 
                     // Check if the tag was already found and if the tag is target
                     if(!found_ids.count(id) && std::find(target_ids.begin(), target_ids.end(), id) != target_ids.end()){
-                        ROS_INFO("Found april tag with id %d", id);
+                        updateStatus(ROBOT_STATUS::TAG_FOUND);
 
                         tf2_ros::Buffer tf(ros::Duration(1.0));
                         tf2_ros::TransformListener tfListener(tf);
@@ -257,7 +254,7 @@ class ActionServer {
         }
 
         void tiltHeadDown(double tilt_angle) {
-            ROS_INFO("Tilting the head");
+            updateStatus(ROBOT_STATUS::TILT_HEAD);
 
             ros::Publisher head_pub = nh_.advertise<trajectory_msgs::JointTrajectory>("/head_controller/command", 10);
             ros::Duration(0.5).sleep();
