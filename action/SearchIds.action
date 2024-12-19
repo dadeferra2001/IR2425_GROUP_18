@@ -3,7 +3,7 @@ int32[] ids
 ---
 # Result
 bool completed
-geometry_msgs/Point[] positions
+geometry_msgs/Pose[] poses
 ---
 # Feedback
 string status

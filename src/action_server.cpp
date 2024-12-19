@@ -26,7 +26,7 @@ class ActionServer {
         actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> movebase_client_;
 
         std::vector<int> target_ids;
-        std::map<int, geometry_msgs::Point> found_ids;
+        std::map<int, geometry_msgs::Pose> found_ids;
 
         ros::Subscriber tag_detections;
         ros::Publisher vel_pub;
@@ -169,11 +169,11 @@ class ActionServer {
             assignment1::SearchIdsResult result;
             if(isJobCompleted()){
                 result.completed = true;
-                result.positions = getValues(found_ids);
+                result.poses = getValues(found_ids);
                 ROS_INFO("Succeeded");
             } else {
                 result.completed = false;
-                result.positions = {};
+                result.poses = {};
                 ROS_INFO("Succeeded");
             }
 
@@ -187,7 +187,7 @@ class ActionServer {
                     // Check if the tag was already found and if the tag is target
                     if(!found_ids.count(id) && std::find(target_ids.begin(), target_ids.end(), id) != target_ids.end()){
                         ROS_INFO("Found april tag with id %d", id);
-                        found_ids.insert(std::pair<int, geometry_msgs::Point>(id, detection.pose.pose.pose.position));
+                        found_ids.insert(std::pair<int, geometry_msgs::Pose>(id, detection.pose.pose.pose));
                     } 
                 }
         }
