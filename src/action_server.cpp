@@ -169,14 +169,13 @@ class ActionServer {
             ROS_INFO("Found IDs: %s", vectorToCSV(getKeys(found_ids)).c_str());
         
             assignment1::SearchIdsResult result;
+            result.poses = getValues(found_ids);
             if(isJobCompleted()){
                 result.completed = true;
-                result.poses = getValues(found_ids);
                 ROS_INFO("Succeeded");
             } else {
                 result.completed = false;
-                result.poses = {};
-                ROS_INFO("Succeeded");
+                ROS_INFO("Failed");
             }
 
             as_.setSucceeded(result);
