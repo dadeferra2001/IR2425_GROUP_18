@@ -3,6 +3,7 @@
 #include <map>
 #include <algorithm>
 #include <geometry_msgs/Point.h>
+#include <geometry_msgs/Twist.h>
 #include <trajectory_msgs/JointTrajectory.h>
 #include <trajectory_msgs/JointTrajectoryPoint.h>
 #include <actionlib/server/simple_action_server.h>
@@ -32,6 +33,7 @@ class ActionServer {
 
         ros::Subscriber tag_detections;
         ros::Publisher vel_pub;
+        ros::Publisher cmd_vel_pub;
 
     public:
 
@@ -41,6 +43,8 @@ class ActionServer {
 
             ROS_INFO("Starting the 'SearchIds' action server!");
             as_.start();
+
+            cmd_vel_pub = nh_.advertise<geometry_msgs::Twist>("/mobile_base_controller/cmd_vel", 10);
         }
 
         void updateStatus(ROBOT_STATUS status) {
@@ -118,6 +122,58 @@ class ActionServer {
             return waypoints;
         }
 
+        bool moveToPoint(const geometry_msgs::Point& point) {
+            move_base_msgs::MoveBaseGoal goal;
+            goal.target_pose.header.frame_id = "map";
+            goal.target_pose.header.stamp = ros::Time::now();
+
+            goal.target_pose.pose.position = point;
+            goal.target_pose.pose.orientation.w = 1.0;
+
+            ROS_INFO("Navigating to: [x=%.2f, y=%.2f, z=%.2f]", point.x, point.y, point.z);
+
+            movebase_client_.sendGoal(goal);
+
+            bool finished_before_timeout = movebase_client_.waitForResult(ros::Duration(30.0)); // Adjust timeout as needed
+
+            if (finished_before_timeout) {
+                if (movebase_client_.getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
+                    ROS_INFO("Reached waypoint, performing a full 360-degree spin...");
+
+                    geometry_msgs::Twist spin_msg;
+                    spin_msg.linear.x = 0.0;
+                    spin_msg.linear.y = 0.0;
+                    spin_msg.linear.z = 0.0;
+
+                    spin_msg.angular.x = 0.0;
+                    spin_msg.angular.y = 0.0;
+                    spin_msg.angular.z = 1.0;
+
+                    ros::Rate rate(10);
+                    double duration = 2 * M_PI / fabs(spin_msg.angular.z);
+
+                    ros::Time start_time = ros::Time::now();
+                    while (ros::Time::now() - start_time < ros::Duration(duration)) {
+                        cmd_vel_pub.publish(spin_msg);
+                        rate.sleep();
+                    }
+
+                    spin_msg.angular.z = 0.0;
+                    cmd_vel_pub.publish(spin_msg);
+
+                    ROS_INFO("Completed full spin.");
+                    return true;
+                } else {
+                    ROS_WARN("Failed to reach waypoint.");
+                }
+            } else {
+                ROS_WARN("Timed out while trying to reach waypoint.");
+            }
+
+            return false;
+        }
+
+
         void navigateWaypoints(const std::vector<geometry_msgs::Point>& waypoints) {
 
             while (!movebase_client_.waitForServer(ros::Duration(5.0))) {
@@ -125,29 +181,7 @@ class ActionServer {
             }
 
             for (size_t i = 0; i < waypoints.size() && !isJobCompleted(); ++i) {
-                // Prepare a goal message
-                move_base_msgs::MoveBaseGoal goal;
-                goal.target_pose.header.frame_id = "map"; // Use the map frame
-                goal.target_pose.header.stamp = ros::Time::now();
-                goal.target_pose.pose.position = waypoints[i];
-                goal.target_pose.pose.orientation.w = 1.0;
-
-                // Send the goal to move_base
-                ROS_INFO("Navigating to waypoint %lu: [x=%.2f, y=%.2f, z=%.2f]", i + 1, waypoints[i].x, waypoints[i].y, waypoints[i].z);
-                movebase_client_.sendGoal(goal);
-
-                // Wait for the robot to reach the goal
-                bool finished_before_timeout = movebase_client_.waitForResult(ros::Duration(30.0)); // Adjust timeout as needed
-
-                if (finished_before_timeout) {
-                    if (movebase_client_.getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
-                        ROS_INFO("Reached waypoint %lu.", i + 1);
-                    } else {
-                        ROS_WARN("Failed to reach waypoint %lu. State: %s", i + 1, movebase_client_.getState().toString().c_str());
-                    }
-                } else {
-                    ROS_ERROR("Timed out while trying to reach waypoint %lu.", i + 1);
-                }
+                moveToPoint(waypoints[i]);
             }
 
             ROS_INFO("Finished navigating all waypoints.");
