@@ -1,49 +1,59 @@
 #include <ros/ros.h>
-#include <vector>
-#include <map>
+
 #include <algorithm>
+#include <map>
+#include <vector>
+
+#include <assignment1/functions.h>
+#include <assignment1/SearchIdsAction.h>
+#include <assignment1/robot_status.h>
+
+#include <actionlib/client/simple_action_client.h>
+#include <actionlib/server/simple_action_server.h>
+#include <apriltag_ros/AprilTagDetectionArray.h>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/Twist.h>
-#include <trajectory_msgs/JointTrajectory.h>
-#include <trajectory_msgs/JointTrajectoryPoint.h>
-#include <actionlib/server/simple_action_server.h>
-#include <actionlib/client/simple_action_client.h>
-#include <assignment1/SearchIdsAction.h>
 #include <move_base_msgs/MoveBaseAction.h>
-#include <apriltag_ros/AprilTagDetectionArray.h>
-#include <assignment1/functions.h>
-#include <assignment1/robot_status.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <trajectory_msgs/JointTrajectory.h>
+#include <trajectory_msgs/JointTrajectoryPoint.h>
 
 class ActionServer {
     protected:
 
-        ROBOT_STATUS robot_status_;
-
+        // Action server variables
         ros::NodeHandle nh_;
         std::string action_name_;
-
         actionlib::SimpleActionServer<assignment1::SearchIdsAction> as_;
-        actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> movebase_client_;
 
+        // Robot state tracking
         std::vector<int> target_ids;
         std::map<int, geometry_msgs::Pose> found_ids;
+        ROBOT_STATUS robot_status_;
 
-        ros::Subscriber tag_detections;
-        ros::Publisher vel_pub;
-        ros::Publisher cmd_vel_pub;
+        // Clients
+        actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> movebase_client_;
 
     public:
 
-        ActionServer(std::string name) : action_name_(name), as_(nh_, name, boost::bind(&ActionServer::executeCB, this, _1), false), movebase_client_("/move_base", true) {
+        /**
+        * Initialize the action server and start it. It also initialize useful stuff like the move_base client.
+        *
+        * @param name Name of the action server.
+        * @return New instance of running action server.
+        */
+        ActionServer(std::string name) : action_name_(name), as_(nh_, name, boost::bind(&ActionServer::executeCallback, this, _1), false), movebase_client_("/move_base", true) {
             ROS_INFO("Starting the 'SearchIds' action server!");
             as_.start();
-
-            cmd_vel_pub = nh_.advertise<geometry_msgs::Twist>("/mobile_base_controller/cmd_vel", 10);
         }
 
+        /**
+        * Update the internal status of the robot and publish the related action feedback.
+        *
+        * @param status New status of the robot.
+        */
         void updateStatus(ROBOT_STATUS status) {
             robot_status_ = status;
             
@@ -52,7 +62,12 @@ class ActionServer {
             as_.publishFeedback(feedback);
         }
 
-
+        /**
+        * Generates the waypoints that the robot must visit.
+        * NOTE: This function can be improved to generate the waypoints in a smarter way.
+        *
+        * @return Vector of geometry_msg/Point that the robot must visit. 
+        */
         std::vector<geometry_msgs::Point> generateWaypoints() {
             std::vector<geometry_msgs::Point> waypoints;
 
@@ -119,7 +134,15 @@ class ActionServer {
             return waypoints;
         }
 
+        /**
+        * Send the goal point to the move_base client and, upon reaching the point, perform a 360° scan of the environment.
+        * 
+        * @param point Point to reach.
+        * @return True if the robot reached the point succesfully, false otherwise.
+        */
         bool moveToPoint(const geometry_msgs::Point& point) {
+            ros::Publisher cmd_vel_pub = nh_.advertise<geometry_msgs::Twist>("/mobile_base_controller/cmd_vel", 10);
+
             move_base_msgs::MoveBaseGoal goal;
             goal.target_pose.header.frame_id = "map";
             goal.target_pose.header.stamp = ros::Time::now();
@@ -167,7 +190,11 @@ class ActionServer {
             return false;
         }
 
-
+        /**
+        * Handle the visit of a list of waypoints.
+        *
+        * @param waypoints List of points to visit.
+        */
         void navigateWaypoints(const std::vector<geometry_msgs::Point>& waypoints) {
 
             while (!movebase_client_.waitForServer(ros::Duration(5.0))) {
@@ -181,14 +208,19 @@ class ActionServer {
             ROS_INFO("Finished navigating all waypoints.");
         }
 
-        void executeCB(const assignment1::SearchIdsGoalConstPtr &goal) {
+        /**
+        * Action server execute callback. Gets called when the action client make a request.
+        *
+        * @param goal Action goal message, containing the list of IDs of the april tags.
+        */
+        void executeCallback(const assignment1::SearchIdsGoalConstPtr &goal) {
             
             target_ids = goal->ids;
             updateStatus(ROBOT_STATUS::GOAL_RECEIVED);
 
-            tiltHeadDown(-0.6);
+            tiltHead(-0.6);
 
-            tag_detections = nh_.subscribe("/tag_detections", 1000, &ActionServer::tagDetectionsCallback, this);
+            ros::Subscriber tag_detections = nh_.subscribe("/tag_detections", 1000, &ActionServer::tagDetectionsCallback, this);
 
             updateStatus(ROBOT_STATUS::GENERATING_WAYPOINTS);
             std::vector<geometry_msgs::Point> waypoints = generateWaypoints();
@@ -208,10 +240,15 @@ class ActionServer {
                 updateStatus(ROBOT_STATUS::GOAL_FAILED);
             }
 
-            tiltHead();
+            tiltHead(0.0);
             as_.setSucceeded(result);
         }
 
+        /**
+        * Handle the findining of an april tag. Gets called when there is a message published on /tag_detections.
+        * 
+        * @param detections Detections published in the topic.
+        */
         void tagDetectionsCallback(const apriltag_ros::AprilTagDetectionArray::ConstPtr &detections) {
                 for(const auto& detection : detections->detections){
                     int id = detection.id[0];
@@ -243,6 +280,11 @@ class ActionServer {
                 }
         }
 
+        /**
+        * Check whether the goal is achieved or not.
+        *
+        * @return True if the robot found all the april tags, false otherwise.
+        */
         bool isJobCompleted() {
             for (int target_id : target_ids) {
                 if (found_ids.find(target_id) == found_ids.end()) {
@@ -253,7 +295,13 @@ class ActionServer {
             return true;
         }
 
-        void tiltHeadDown(double tilt_angle) {
+        /**
+        * Utility function to control the robot's head tilt. Used to make the robot watch towards the ground for
+        * better april tag detection.
+        *
+        * @param tilt_angle Angle to tilt the head in the vertical direction (both positive or negative). In radians.
+        */
+        void tiltHead(double tilt_angle) {
             updateStatus(ROBOT_STATUS::TILT_HEAD);
 
             ros::Publisher head_pub = nh_.advertise<trajectory_msgs::JointTrajectory>("/head_controller/command", 10);
