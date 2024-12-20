@@ -71,65 +71,33 @@ class ActionServer {
         std::vector<geometry_msgs::Point> generateWaypoints() {
             std::vector<geometry_msgs::Point> waypoints;
 
+            
+            geometry_msgs::Point p0;
+            p0.x = 0.0;
+            p0.y = 0.0;
+            waypoints.push_back(p0);
+
             geometry_msgs::Point p1;
-            p1.x = 2.6516246795654297;
-            p1.y = 0.08407711982727051;
+            p1.x = 12.160958290100098;
+            p1.y = 0.5823056697845459;
             waypoints.push_back(p1);
 
             geometry_msgs::Point p2;
-            p2.x = 5.743946075439453;
-            p2.y = 0.14989829063415527;
+            p2.x = 11.928516387939453;
+            p2.y = -3.650113582611084;
             waypoints.push_back(p2);
 
             geometry_msgs::Point p3;
-            p3.x = 9.689477920532227;
-            p3.y = 0.7225534915924072;
+            p3.x = 8.314473152160645;
+            p3.y = -3.5224647521972656;
             waypoints.push_back(p3);
 
             geometry_msgs::Point p4;
-            p4.x = 12.680120468139648;
-            p4.y = 1.0551815032958984;
+            p4.x = 8.01441764831543;
+            p4.y = 0.10475349426269531;
             waypoints.push_back(p4);
 
-            geometry_msgs::Point p5;
-            p5.x = 10.68838119506836;
-            p5.y = -0.6969592571258545;
-            waypoints.push_back(p5);
-
-            geometry_msgs::Point p6;
-            p6.x = 12.999018669128418;
-            p6.y = -1.910409688949585;
-            waypoints.push_back(p6);
-
-            geometry_msgs::Point p7;
-            p7.x = 12.88753890991211;
-            p7.y = -3.583296537399292;
-            waypoints.push_back(p7);
-
-            geometry_msgs::Point p8;
-            p8.x = 10.769646644592285;
-            p8.y = -3.632005453109741;
-            waypoints.push_back(p8);
-
-            geometry_msgs::Point p9;
-            p9.x = 8.05963134765625;
-            p9.y = -3.894465208053589;
-            waypoints.push_back(p9);
-
-            geometry_msgs::Point p10;
-            p10.x = 8.133699417114258;
-            p10.y = -1.7906239032745361;
-            waypoints.push_back(p10);
-
-            geometry_msgs::Point p11;
-            p11.x = -0.2616691589355469;
-            p11.y = -0.7500753402709961;
-            waypoints.push_back(p11);
-
-            geometry_msgs::Point p12;
-            p12.x = 0;
-            p12.y = 0;
-            waypoints.push_back(p12);
+            waypoints.push_back(p0);
 
             return waypoints;
         }
