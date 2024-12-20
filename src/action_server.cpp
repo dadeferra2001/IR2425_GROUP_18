@@ -109,8 +109,10 @@ class ActionServer {
         * @return True if the robot reached the point succesfully, false otherwise.
         */
         bool moveToPoint(const geometry_msgs::Point& point) {
+            // Subscribe to cmd_vel
             ros::Publisher cmd_vel_pub = nh_.advertise<geometry_msgs::Twist>("/mobile_base_controller/cmd_vel", 10);
 
+            // Populate the move base goal message
             move_base_msgs::MoveBaseGoal goal;
             goal.target_pose.header.frame_id = "map";
             goal.target_pose.header.stamp = ros::Time::now();
@@ -122,12 +124,15 @@ class ActionServer {
 
             movebase_client_.sendGoal(goal);
 
-            bool finished_before_timeout = movebase_client_.waitForResult(ros::Duration(30.0)); // Adjust timeout as needed
+            bool finished_before_timeout = movebase_client_.waitForResult(ros::Duration(30.0));
 
+            // Check if action was succesfully executed
             if (finished_before_timeout) {
                 if (movebase_client_.getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
                     updateStatus(ROBOT_STATUS::SCANNING);
 
+                    // To ensure better detection of the tags, every time we reach a waypoint
+                    // we perform a 360° spin to check surroundings
                     geometry_msgs::Twist spin_msg;
                     spin_msg.linear.x = 0.0;
                     spin_msg.linear.y = 0.0;
@@ -137,6 +142,8 @@ class ActionServer {
                     spin_msg.angular.y = 0.0;
                     spin_msg.angular.z = 1.0;
 
+
+                    // We can calculate the time to perform a full spin using the angular velocity
                     ros::Rate rate(10);
                     double duration = 2 * M_PI / fabs(spin_msg.angular.z);
 
@@ -146,6 +153,7 @@ class ActionServer {
                         rate.sleep();
                     }
 
+                    // Stop the spin 
                     spin_msg.angular.z = 0.0;
                     cmd_vel_pub.publish(spin_msg);
 
@@ -168,7 +176,8 @@ class ActionServer {
             while (!movebase_client_.waitForServer(ros::Duration(5.0))) {
                 ROS_INFO("Waiting for the move_base action server to come up");
             }
-
+            
+            // Navigating all the waypoints
             for (size_t i = 0; i < waypoints.size() && !isJobCompleted(); ++i) {
                 moveToPoint(waypoints[i]);
             }
@@ -186,10 +195,12 @@ class ActionServer {
             target_ids = goal->ids;
             updateStatus(ROBOT_STATUS::GOAL_RECEIVED);
 
+            // First we tilt the head down to ensure to detect the april tags
             tiltHead(-0.6);
 
             ros::Subscriber tag_detections = nh_.subscribe("/tag_detections", 1000, &ActionServer::tagDetectionsCallback, this);
 
+            // Generating waypoints and exploring
             updateStatus(ROBOT_STATUS::GENERATING_WAYPOINTS);
             std::vector<geometry_msgs::Point> waypoints = generateWaypoints();
 
@@ -197,7 +208,8 @@ class ActionServer {
 
             ROS_INFO("Target IDs: %s", vectorToCSV(target_ids).c_str());
             ROS_INFO("Found IDs: %s", vectorToCSV(getKeys(found_ids)).c_str());
-        
+            
+            // Once the navigation of the waypoints is finished, we respond to the client
             assignment1::SearchIdsResult result;
             result.poses = getValues(found_ids);
             if(isJobCompleted()){
@@ -207,7 +219,8 @@ class ActionServer {
                 result.completed = false;
                 updateStatus(ROBOT_STATUS::GOAL_FAILED);
             }
-
+            
+            // Tilt the head back up
             tiltHead(0.0);
             as_.setSucceeded(result);
         }
@@ -228,6 +241,7 @@ class ActionServer {
                         tf2_ros::Buffer tf(ros::Duration(1.0));
                         tf2_ros::TransformListener tfListener(tf);
 
+                        // Now we have to transform from the camera frame to the map frame
                         geometry_msgs::PoseStamped pose_camera_frame;
 
                         pose_camera_frame.header.frame_id = "xtion_rgb_optical_frame";
